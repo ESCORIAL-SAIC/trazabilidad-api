@@ -1,0 +1,3 @@
+# Los scripts de shell deben tener EOL LF aunque se editen en Windows,
+# de lo contrario fallan en el runner Linux del CI con errores por '\r'.
+*.sh text eol=lf

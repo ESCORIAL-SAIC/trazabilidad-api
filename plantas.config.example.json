@@ -1,0 +1,45 @@
+{
+  "default": "25demayo",
+  "plantas": {
+    "25demayo": {
+      "nombre": "25 de Mayo",
+      "pg": {
+        "host": "postgres.planta-25demayo.interno",
+        "port": 5432,
+        "database": "__base_postgres__",
+        "user": "__usuario_pg__",
+        "password": "__completar__",
+        "connectionTimeoutMillis": 60000
+      },
+      "mssql": {
+        "host": "sqlserver.planta-25demayo.interno",
+        "port": 1433,
+        "database": "__base_mssql__",
+        "user": "__usuario_mssql__",
+        "password": "__completar__",
+        "encrypt": false,
+        "trustServerCertificate": true
+      }
+    },
+    "suipacha": {
+      "nombre": "Suipacha",
+      "pg": {
+        "host": "postgres.planta-suipacha.interno",
+        "port": 5432,
+        "database": "__base_postgres__",
+        "user": "__usuario_pg__",
+        "password": "__completar__",
+        "connectionTimeoutMillis": 60000
+      },
+      "mssql": {
+        "host": "sqlserver.planta-suipacha.interno",
+        "port": 1433,
+        "database": "__base_mssql__",
+        "user": "__usuario_mssql__",
+        "password": "__completar__",
+        "encrypt": false,
+        "trustServerCertificate": true
+      }
+    }
+  }
+}

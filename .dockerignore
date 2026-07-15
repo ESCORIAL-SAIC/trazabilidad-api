@@ -1,0 +1,17 @@
+# VCS / CI (no deben entrar a la imagen; la versión llega por --build-arg)
+.git
+.github
+.gitignore
+.gitattributes
+
+# Dependencias / artefactos de build (se reinstalan/recompilan en la imagen)
+node_modules
+dist
+
+# Credenciales / config local (NUNCA dentro de la imagen; se montan como volumen)
+.env
+.env.*
+plantas.config.json
+
+# Logs y varios
+*.log

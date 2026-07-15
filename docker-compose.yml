@@ -1,0 +1,30 @@
+services:
+  trazabilidad-api:
+    # Deploy: baja la imagen publicada en GHCR. Fijá una versión con IMAGE_TAG en un .env
+    # (p.ej. IMAGE_TAG=0.1.0); por defecto usa :latest.
+    # Para desarrollo local, comentá 'image' y descomentá 'build: .'.
+    image: ghcr.io/escorial-saic/trazabilidad-api:${IMAGE_TAG:-latest}
+    # build: .
+    container_name: trazabilidad-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Montá tu plantas.config.json real aquí (nunca se copia dentro de la imagen).
+      - ./plantas.config.json:/app/plantas.config.json:ro
+    environment:
+      PORT: "3000"
+      PLANTAS_CONFIG: /app/plantas.config.json
+      # Espejo MSSQL (opcional)
+      # MIRROR_ENABLED: "false"
+      # MIRROR_WRITE_MODE: "strict"
+      # Liberación por producto
+      # LIBERACION_COCINA_ENABLED: "true"
+      # LIBERACION_TERMO_ENABLED: "false"
+    healthcheck:
+      # Liveness: sin dependencias, 200 mientras el proceso viva.
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
