@@ -25,6 +25,16 @@ function hora(): string {
  * y salida (status + duración en ms).
  */
 export function requestLogger(req: Request, res: Response, next: NextFunction): void {
+  // El healthcheck de Docker pega cada 30s; no ensucia el log salvo que falle.
+  if (req.path.startsWith('/health')) {
+    res.on('finish', () => {
+      if (res.statusCode >= 400) {
+        console.log(`⚠ ${hora()} ${req.method} ${req.originalUrl} ${res.statusCode}`);
+      }
+    });
+    return next();
+  }
+
   const inicio = Date.now();
   const planta = req.header('X-Planta') ?? '-';
 
