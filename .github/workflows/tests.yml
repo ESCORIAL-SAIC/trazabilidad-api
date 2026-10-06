@@ -54,3 +54,4 @@ jobs:
           path: reports/junit.xml
           reporter: jest-junit
           fail-on-error: false
+          use-actions-summary: false   # v2: sin esto escribe en el job summary y no crea el check run
