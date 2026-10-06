@@ -27,6 +27,17 @@ Se hace sobre la base **TEST** (`<IP_BASE_TEST>`), NO producción.
 | 6 | Duplicado mismo puesto | POST /control/ok | rechazo con error de negocio |
 | 7 | Resolver secuencia | POST /scan/resolver | acción/puesto asignado = pestaña que abría el Delphi |
 
+## Diferencias intencionales con el Delphi
+
+- **Historial filtrado por tipo de producto** (`resolverEscaneo`). El Delphi
+  (`QueryEstado`) toma todo `aux_controlcalidad` de la etiqueta, pero los números
+  se repiten entre `etiquetas_maestro_cocinas` y `etiquetas_maestro_termotanques`
+  (desde oct-2026 los termotanques reusan números de cocinas de 2022) y la tabla no
+  guarda el tipo. La API sólo cuenta los registros cuyo `puestocontrol_id` pertenece
+  a los puestos del `tipoConfig` de la terminal (cada id es de un único tipo en
+  `VP_MENUFALLAS_PUESTOCONTROL_V1`). En etiquetas sin número repetido el resultado es
+  idéntico; con número repetido el Delphi da "Control OK" falso o saltea puestos.
+
 ## Ejemplos curl
 
 ```bash
