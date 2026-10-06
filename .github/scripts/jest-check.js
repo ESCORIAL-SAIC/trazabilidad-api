@@ -112,7 +112,7 @@ module.exports = async ({ github, context, core, path = 'reports/junit.xml', nam
     }))
     .slice(0, 50);
 
-  await github.rest.checks.create({
+  const { data: check } = await github.rest.checks.create({
     owner, repo, head_sha, name,
     status: 'completed',
     conclusion: r.failed > 0 ? 'failure' : 'success',
@@ -123,7 +123,9 @@ module.exports = async ({ github, context, core, path = 'reports/junit.xml', nam
       annotations,
     },
   });
-  core.info(`Check "${name}": ${r.specs} specs, ${r.passed} passed, ${r.failed} failed, ${r.skipped} skipped`);
+  // Sin details_url, "Details" lleva a la homepage de la App; que abra el resumen del check.
+  await github.rest.checks.update({ owner, repo, check_run_id: check.id, details_url: check.html_url });
+  core.info(`Check "${name}":${r.specs} specs, ${r.passed} passed, ${r.failed} failed, ${r.skipped} skipped`);
 };
 
 module.exports.parseJunit = parseJunit;
