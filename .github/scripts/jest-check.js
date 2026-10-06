@@ -1,7 +1,8 @@
-// Publica el resultado de jest (reports/junit.xml de jest-junit) como check run
-// "Jest tests", con un título al estilo Cypress Cloud: "N specs: X passed, Y failed, Z skipped".
+// Publica el resultado de jest (reports/junit.xml de jest-junit) como check runs:
+// - "Jest tests": resumen al estilo Cypress Cloud ("N specs: X passed, Y failed, Z skipped").
+// - Un check por test ("<archivo> › <describe> › <test>"), para ver cada uno con su tilde en la PR.
 // Se llama desde actions/github-script; si el token es de la GitHub App del CI,
-// el check aparece suelto (con el ícono de la app) y no agrupado bajo el workflow.
+// los checks aparecen sueltos (con el ícono de la app) y no agrupados bajo el workflow.
 
 const fs = require('fs');
 
@@ -32,6 +33,7 @@ function parseJunit(xml) {
       const inner = c[1] ?? '';
       const failure = inner.match(/<(failure|error)[^>]*>([\s\S]*?)<\/\1>|<(failure|error)[^>]*\/>/);
       cases.push({
+        describe: unescape(attr(c[0], 'classname')).trim(),
         name: unescape(attr(c[0], 'name')),
         failed: Boolean(failure),
         skipped: /<skipped/.test(inner),
@@ -80,7 +82,44 @@ function detalleFallas(suites) {
   return out.join('\n\n').slice(0, 65000);
 }
 
-module.exports = async ({ github, context, core, path = 'reports/junit.xml', name = 'Jest tests' }) => {
+// Nombre del check de cada test; GitHub muestra un solo check por nombre, así que
+// los repetidos se numeran.
+function nombresPorTest(suites) {
+  const vistos = new Map();
+  return suites.flatMap((s) =>
+    s.cases.map((c) => {
+      const archivo = s.file.split('/').pop().replace(/\.test\.ts$/, '');
+      const base = [archivo, c.describe, c.name].filter(Boolean).join(' › ').slice(0, 180);
+      const n = (vistos.get(base) ?? 0) + 1;
+      vistos.set(base, n);
+      return { suite: s, test: c, nombre: n > 1 ? `${base} (${n})` : base };
+    }),
+  );
+}
+
+// Crear >80 checks seguidos puede pegar contra el rate limit secundario de GitHub:
+// en ese caso espera lo que indique retry-after y reintenta.
+async function conReintento(fn, core) {
+  for (let intento = 1; ; intento++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const limite = (err.status === 403 || err.status === 429) && intento < 5;
+      if (!limite) throw err;
+      const h = err.response?.headers?.['retry-after'];
+      const espera = h != null && !Number.isNaN(Number(h)) ? Number(h) : 60;
+      core.info(`Rate limit de GitHub, reintento en ${espera}s`);
+      await new Promise((r) => setTimeout(r, espera * 1000));
+    }
+  }
+}
+
+const lineaDelFallo = (file, message) => {
+  const m = message.match(new RegExp(`${file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:(\\d+):`));
+  return m ? Number(m[1]) : 1;
+};
+
+module.exports = async ({ github, context, core, path = 'reports/junit.xml', name = 'Jest tests', porTest = true }) => {
   const head_sha = context.payload.pull_request?.head.sha ?? context.sha;
   const { owner, repo } = context.repo;
 
@@ -99,8 +138,7 @@ module.exports = async ({ github, context, core, path = 'reports/junit.xml', nam
   const annotations = suites
     .flatMap((s) => s.cases.filter((c) => c.failed).map((c) => {
       // Línea del test fallido según el stack trace ("<archivo>:<línea>:<col>").
-      const m = c.message.match(new RegExp(`${s.file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:(\\d+):`));
-      const line = m ? Number(m[1]) : 1;
+      const line = lineaDelFallo(s.file, c.message);
       return {
         path: s.file,
         start_line: line,
@@ -126,7 +164,30 @@ module.exports = async ({ github, context, core, path = 'reports/junit.xml', nam
   // Sin details_url, "Details" lleva a la homepage de la App; que abra el resumen del check.
   await github.rest.checks.update({ owner, repo, check_run_id: check.id, details_url: check.html_url });
   core.info(`Check "${name}": ${r.specs} specs, ${r.passed} passed, ${r.failed} failed, ${r.skipped} skipped`);
+
+  if (!porTest) return;
+  for (const { suite, test, nombre } of nombresPorTest(suites)) {
+    const conclusion = test.failed ? 'failure' : test.skipped ? 'skipped' : 'success';
+    const line = lineaDelFallo(suite.file, test.message);
+    await conReintento(() => github.rest.checks.create({
+      owner, repo, head_sha,
+      name: nombre,
+      status: 'completed',
+      conclusion,
+      details_url: check.html_url, // Details abre el resumen "Jest tests"
+      output: {
+        title: test.failed ? 'Failed' : test.skipped ? 'Skipped' : 'Passed',
+        summary: `\`${suite.file}\`${test.describe ? ` › ${test.describe}` : ''} › ${test.name}`,
+        text: test.failed ? `\`\`\`\n${test.message.slice(0, 60000)}\n\`\`\`` : undefined,
+        annotations: test.failed
+          ? [{ path: suite.file, start_line: line, end_line: line, annotation_level: 'failure', title: test.name.slice(0, 255), message: test.message.slice(0, 2000) || 'Test fallido' }]
+          : undefined,
+      },
+    }), core);
+  }
+  core.info(`Checks por test: ${r.passed + r.failed + r.skipped}`);
 };
 
 module.exports.parseJunit = parseJunit;
 module.exports.resumen = resumen;
+module.exports.nombresPorTest = nombresPorTest;
