@@ -22,3 +22,6 @@ Thumbs.db
 
 # Archivos temporales de FUSE (archivos borrados que siguen abiertos)
 .fuse_hidden*
+
+# Reportes de tests (CI)
+reports/

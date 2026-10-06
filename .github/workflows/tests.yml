@@ -1,8 +1,9 @@
 name: Tests
 
 # Valida typecheck + tests unitarios (jest, 100% mockeado, sin DB) en cada PR.
-# Configurar este check como requerido en la protección de ramas para bloquear
-# el merge si falla.
+# El job "test" es check requerido en la protección de dev y main.
+# Además publica el check "Jest" con el resumen (N passed, N failed) y el
+# detalle por archivo, vía dorny/test-reporter sobre el JUnit de jest-junit.
 
 on:
   pull_request:
@@ -11,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  checks: write   # dorny/test-reporter crea el check run con el resumen
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -36,4 +38,19 @@ jobs:
         run: npm run typecheck
 
       - name: Tests
-        run: npm test -- --ci --silent
+        run: npm test -- --ci --silent --reporters=default --reporters=jest-junit
+        env:
+          JEST_JUNIT_OUTPUT_DIR: reports
+          JEST_JUNIT_SUITE_NAME: '{filepath}'
+          JEST_JUNIT_CLASSNAME: '{classname}'
+          JEST_JUNIT_TITLE: '{title}'
+          JEST_JUNIT_ADD_FILE_ATTRIBUTE: 'true'
+
+      - name: Reporte de tests
+        uses: dorny/test-reporter@v2
+        if: ${{ !cancelled() }}
+        with:
+          name: Jest
+          path: reports/junit.xml
+          reporter: jest-junit
+          fail-on-error: false
