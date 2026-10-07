@@ -12,7 +12,7 @@ import {
   FallaNivel2,
   PuestoControl,
 } from '../repositories/catalogos.repo';
-import { normalizarTipo, PUESTO } from '../domain/puestos';
+import { normalizarTipo, PUESTO, requiereGraficaFrontal } from '../domain/puestos';
 
 /**
  * Réplica de TFormTrazabilidad.SearchEditButton1Click.
@@ -226,7 +226,7 @@ export async function resolverEscaneo(
       }
     } else if (puestoAsignadoNombre === PUESTO.ATEQ) {
       base.campoBarral = { visible: true, readOnly: false, conCamara: false, prompt: 'Barral' };
-    } else if (puestoAsignadoNombre === PUESTO.CONTROL_FINAL) {
+    } else if (requiereGraficaFrontal(puestoAsignadoNombre, input.tipoProducto)) {
       base.campoBarral = {
         visible: true,
         readOnly: false,

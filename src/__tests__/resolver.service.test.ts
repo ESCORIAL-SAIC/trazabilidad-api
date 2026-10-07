@@ -62,7 +62,31 @@ test('puesto fijo normal sin registros previos -> CONTROLADOR con nivel1', async
   expect(r.color).toBe('#00FFFF');
 });
 
-test('Control Final fijo -> CONTROLADOR con campoBarral y cámara', async () => {
+test('Control Final de cocina -> CONTROLADOR con campo de gráfica frontal y cámara', async () => {
+  mEtiqueta.buscarEtiqueta.mockResolvedValue(etiquetaCocina);
+  // controles previos OK en c1 y c2 => corresponde el c3 (Control Final)
+  mEstado.estadoPorEtiqueta.mockResolvedValue([
+    registro({ puestocontrol_n: 'Control de Fuga y retencion de horno', puestocontrol_id: 'p1', controlador_estado: true }),
+    registro({ puestocontrol_n: 'Control de Retencion de hornalla y encedido electrico', puestocontrol_id: 'p2', controlador_estado: true }),
+  ]);
+  mCatalogos.listarPuestos.mockResolvedValue(puestosCocina);
+
+  const r = await resolverEscaneo(
+    baseInput({
+      numero: 1456778,
+      tipoProducto: 'COCINA',
+      tipoConfig: 'COCINA',
+      puestoConfigIndex: 3,
+      puestoConfigNombre: 'Control Final',
+      puestoConfigC: 3,
+    }),
+  );
+  expect(r.accion).toBe('CONTROLADOR');
+  expect(r.campoBarral?.conCamara).toBe(true);
+  expect(r.campoBarral?.prompt).toBe('Codigo Frontal');
+});
+
+test('Control Final de termotanque -> CONTROLADOR sin campo de gráfica frontal', async () => {
   mEtiqueta.buscarEtiqueta.mockResolvedValue(etiquetaTermo);
   // ya tiene un control previo OK en c1 => corresponde el c2 (Control Final)
   mEstado.estadoPorEtiqueta.mockResolvedValue([
@@ -74,8 +98,8 @@ test('Control Final fijo -> CONTROLADOR con campoBarral y cámara', async () => 
     baseInput({ numero: 220011, puestoConfigIndex: 2, puestoConfigNombre: 'Control Final', puestoConfigC: 2 }),
   );
   expect(r.accion).toBe('CONTROLADOR');
-  expect(r.campoBarral?.conCamara).toBe(true);
-  expect(r.campoBarral?.prompt).toBe('Codigo Frontal');
+  expect(r.puestoAsignado?.nombre).toBe('Control Final');
+  expect(r.campoBarral).toBeUndefined();
 });
 
 test('terminal Reparador (index 0) sin registros -> asigna primer puesto real', async () => {

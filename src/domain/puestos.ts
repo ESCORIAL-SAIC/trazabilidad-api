@@ -9,6 +9,14 @@ export const PUESTO = {
   REPARADOR: 'Reparador',
 } as const;
 
+/**
+ * La gráfica frontal sólo se pickea/valida en Control Final de cocinas;
+ * termotanques y calefones no llevan gráfica frontal.
+ */
+export function requiereGraficaFrontal(puestoNombre: string, tipoProducto: string): boolean {
+  return puestoNombre === PUESTO.CONTROL_FINAL && tipoProducto === 'COCINA';
+}
+
 /** Tipos de producto seleccionables (ComboBoxTipo). */
 export type TipoProducto =
   | 'COCINA'
