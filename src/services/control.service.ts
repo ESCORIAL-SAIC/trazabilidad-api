@@ -1,7 +1,7 @@
 import { env } from '../config/env';
 import { nuevoGuid } from '../db/guid';
 import { BusinessError } from '../middleware/errors';
-import { PUESTO } from '../domain/puestos';
+import { PUESTO, requiereGraficaFrontal } from '../domain/puestos';
 import { estadoPorEtiqueta } from '../repositories/estado.repo';
 import { buscarBarral, validarFrontal } from '../repositories/etiqueta.repo';
 import {
@@ -99,15 +99,17 @@ function camposPorPuesto(
   return { etiqueta, barral: b, etiqueta_asociada: null };
 }
 
-const requiereBarral = (puesto: string): boolean =>
-  puesto === PUESTO.FUGA || puesto === PUESTO.ATEQ || puesto === PUESTO.CONTROL_FINAL;
+const requiereBarral = (puesto: string, tipoProducto: string): boolean =>
+  puesto === PUESTO.FUGA ||
+  puesto === PUESTO.ATEQ ||
+  requiereGraficaFrontal(puesto, tipoProducto);
 
 /** ButtonOKClick: registra control OK. */
 export async function registrarOk(
   input: RegistrarOkInput,
 ): Promise<{ id: string; liberado: boolean; mensaje?: string }> {
   // Validaciones de barral / código frontal (sólo si el puesto lo requiere)
-  if (requiereBarral(input.puesto.nombre)) {
+  if (requiereBarral(input.puesto.nombre, input.tipoProducto)) {
     const b = input.barral ?? '';
     if (input.puesto.nombre === PUESTO.CONTROL_FINAL) {
       if (b === '') throw new BusinessError('Codigo frontal no ingresado.');

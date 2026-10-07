@@ -292,9 +292,7 @@ describe('liberación en Control Final', () => {
     expect(res.mensaje).toBeUndefined();
   });
 
-  test('registrarOk en Control Final con tipoProducto !== COCINA -> liberado true pero no llama liberarCocina', async () => {
-    mEtiqueta.validarFrontal.mockResolvedValue(true);
-
+  test('registrarOk en Control Final con tipoProducto !== COCINA -> no pide gráfica frontal, liberado true sin liberarCocina', async () => {
     const res = await registrarOk({
       etiqueta: 220011,
       tipoProducto: 'TERMOTANQUE',
@@ -302,10 +300,10 @@ describe('liberación en Control Final', () => {
       puesto: { id: 't2', nombre: 'Control Final', c: 2 },
       controlador: emp,
       secundario: emp2,
-      barral: 'CB123',
     });
 
     expect(res.liberado).toBe(true);
+    expect(mEtiqueta.validarFrontal).not.toHaveBeenCalled();
     expect(mWrite.liberarCocina).not.toHaveBeenCalled();
   });
 });

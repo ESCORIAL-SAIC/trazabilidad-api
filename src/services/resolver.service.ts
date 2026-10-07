@@ -12,7 +12,7 @@ import {
   FallaNivel2,
   PuestoControl,
 } from '../repositories/catalogos.repo';
-import { normalizarTipo, PUESTO } from '../domain/puestos';
+import { normalizarTipo, PUESTO, requiereGraficaFrontal } from '../domain/puestos';
 
 /**
  * Réplica de TFormTrazabilidad.SearchEditButton1Click.
@@ -96,8 +96,16 @@ export async function resolverEscaneo(
   const productoId = (etiqueta.PRODUCTO_ID as string) ?? (etiqueta.producto_id as string);
 
   // 3) Estados existentes (orden desc por fecha)
-  const estados = await estadoPorEtiqueta(input.numero);
   const puestos = await listarPuestos(input.tipoConfig); // == ComboBoxPuestoControl.Items (ordenado)
+  // DIFERENCIA CON DELPHI (intencional): QueryEstado traía todo el historial de la
+  // etiqueta, pero los números se repiten entre maestros (cocinas / termotanques) y
+  // aux_controlcalidad no guarda el tipo de producto. Cada puestocontrol_id pertenece
+  // a un único tipo, así que sólo se cuentan los registros de puestos de este tipo;
+  // si no, el historial de una cocina de 2022 se toma como controles de un calefón nuevo.
+  const idsPuestos = new Set(puestos.map((p) => p.puestocontrol_id));
+  const estados = (await estadoPorEtiqueta(input.numero)).filter((e) =>
+    idsPuestos.has(e.puestocontrol_id ?? ''),
+  );
 
   // esControlador := ComboBoxPuestoControl.ItemIndex = 0  (terminal "Reparador" dinámica)
   const esControlador = input.puestoConfigIndex === 0;
@@ -218,7 +226,7 @@ export async function resolverEscaneo(
       }
     } else if (puestoAsignadoNombre === PUESTO.ATEQ) {
       base.campoBarral = { visible: true, readOnly: false, conCamara: false, prompt: 'Barral' };
-    } else if (puestoAsignadoNombre === PUESTO.CONTROL_FINAL) {
+    } else if (requiereGraficaFrontal(puestoAsignadoNombre, input.tipoProducto)) {
       base.campoBarral = {
         visible: true,
         readOnly: false,

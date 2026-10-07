@@ -62,7 +62,31 @@ test('puesto fijo normal sin registros previos -> CONTROLADOR con nivel1', async
   expect(r.color).toBe('#00FFFF');
 });
 
-test('Control Final fijo -> CONTROLADOR con campoBarral y cámara', async () => {
+test('Control Final de cocina -> CONTROLADOR con campo de gráfica frontal y cámara', async () => {
+  mEtiqueta.buscarEtiqueta.mockResolvedValue(etiquetaCocina);
+  // controles previos OK en c1 y c2 => corresponde el c3 (Control Final)
+  mEstado.estadoPorEtiqueta.mockResolvedValue([
+    registro({ puestocontrol_n: 'Control de Fuga y retencion de horno', puestocontrol_id: 'p1', controlador_estado: true }),
+    registro({ puestocontrol_n: 'Control de Retencion de hornalla y encedido electrico', puestocontrol_id: 'p2', controlador_estado: true }),
+  ]);
+  mCatalogos.listarPuestos.mockResolvedValue(puestosCocina);
+
+  const r = await resolverEscaneo(
+    baseInput({
+      numero: 1456778,
+      tipoProducto: 'COCINA',
+      tipoConfig: 'COCINA',
+      puestoConfigIndex: 3,
+      puestoConfigNombre: 'Control Final',
+      puestoConfigC: 3,
+    }),
+  );
+  expect(r.accion).toBe('CONTROLADOR');
+  expect(r.campoBarral?.conCamara).toBe(true);
+  expect(r.campoBarral?.prompt).toBe('Codigo Frontal');
+});
+
+test('Control Final de termotanque -> CONTROLADOR sin campo de gráfica frontal', async () => {
   mEtiqueta.buscarEtiqueta.mockResolvedValue(etiquetaTermo);
   // ya tiene un control previo OK en c1 => corresponde el c2 (Control Final)
   mEstado.estadoPorEtiqueta.mockResolvedValue([
@@ -74,8 +98,8 @@ test('Control Final fijo -> CONTROLADOR con campoBarral y cámara', async () => 
     baseInput({ numero: 220011, puestoConfigIndex: 2, puestoConfigNombre: 'Control Final', puestoConfigC: 2 }),
   );
   expect(r.accion).toBe('CONTROLADOR');
-  expect(r.campoBarral?.conCamara).toBe(true);
-  expect(r.campoBarral?.prompt).toBe('Codigo Frontal');
+  expect(r.puestoAsignado?.nombre).toBe('Control Final');
+  expect(r.campoBarral).toBeUndefined();
 });
 
 test('terminal Reparador (index 0) sin registros -> asigna primer puesto real', async () => {
@@ -251,4 +275,108 @@ test('DISCREPANCIA: "estados vacío pero reparador_falla_id no vacío" es un cas
   expect(r.accion).toBe('CONTROLADOR');
   expect(r.registroFalla).toBe(false);
   expect(r.puestoAsignado?.nombre).toBe('Control eléctrico');
+});
+
+describe('números de etiqueta repetidos entre cocina y termotanque', () => {
+  // Historial de una cocina de 2022 con el mismo número que un termotanque nuevo
+  // (puestos con ids de puestosCocina: p1/p2/p3).
+  const fugaCocina = registro({
+    id: 'coc-1',
+    puestocontrol_id: 'p1',
+    puestocontrol_n: 'Control de Fuga y retencion de horno',
+    controlador_fechahora: new Date('2022-04-21T11:01:30Z'),
+  });
+  const hornallaCocina = registro({
+    id: 'coc-2',
+    puestocontrol_id: 'p2',
+    puestocontrol_n: 'Control de Retencion de hornalla y encedido electrico',
+    controlador_fechahora: new Date('2022-04-21T11:20:32Z'),
+  });
+
+  beforeEach(() => {
+    mEtiqueta.buscarEtiqueta.mockResolvedValue(etiquetaTermo);
+    mCatalogos.listarPuestos.mockResolvedValue(puestosTermo);
+  });
+
+  test('sin controles propios, en el primer puesto -> CONTROLADOR (ignora el historial de la cocina)', async () => {
+    mEstado.estadoPorEtiqueta.mockResolvedValue([hornallaCocina, fugaCocina]);
+
+    const r = await resolverEscaneo(baseInput({ numero: 220011 }));
+    expect(r.accion).toBe('CONTROLADOR');
+    expect(r.puestoAsignado?.nombre).toBe('Control eléctrico');
+  });
+
+  test('sin controles propios, en Control Final -> no disponible (antes daba "Control OK" falso)', async () => {
+    mEstado.estadoPorEtiqueta.mockResolvedValue([hornallaCocina, fugaCocina]);
+
+    const r = await resolverEscaneo(
+      baseInput({ numero: 220011, puestoConfigIndex: 2, puestoConfigNombre: 'Control Final', puestoConfigC: 2 }),
+    );
+    expect(r.accion).toBe('ESTADO');
+    expect(r.estado).toEqual({ texto: 'Producto no disponible.', color: 'rojo' });
+  });
+
+  test('un solo registro de cocina no permite saltear el primer puesto hacia Control Final', async () => {
+    mEstado.estadoPorEtiqueta.mockResolvedValue([fugaCocina]);
+
+    const r = await resolverEscaneo(
+      baseInput({ numero: 220011, puestoConfigIndex: 2, puestoConfigNombre: 'Control Final', puestoConfigC: 2 }),
+    );
+    expect(r.accion).toBe('ESTADO');
+    expect(r.estado?.texto).toBe('Producto no disponible.');
+  });
+
+  test('controles propios mezclados con los de la cocina -> cuenta sólo los propios', async () => {
+    mEstado.estadoPorEtiqueta.mockResolvedValue([
+      registro({ id: 'own-1', puestocontrol_id: 't1', puestocontrol_n: 'Control eléctrico' }),
+      hornallaCocina,
+      fugaCocina,
+    ]);
+
+    const r = await resolverEscaneo(
+      baseInput({ numero: 220011, puestoConfigIndex: 2, puestoConfigNombre: 'Control Final', puestoConfigC: 2 }),
+    );
+    expect(r.accion).toBe('CONTROLADOR');
+    expect(r.puestoAsignado?.nombre).toBe('Control Final');
+  });
+
+  test('terminal Reparador: una falla pendiente de la cocina no activa el modo REPARADOR', async () => {
+    mEstado.estadoPorEtiqueta.mockResolvedValue([
+      registro({
+        id: 'coc-falla',
+        puestocontrol_id: 'p3',
+        puestocontrol_n: 'Control Final',
+        controlador_estado: false,
+        controlador_falla_id: 'n1-cocina',
+        reparador_falla_id: null,
+      }),
+    ]);
+
+    const r = await resolverEscaneo(
+      baseInput({ numero: 220011, puestoConfigIndex: 0, puestoConfigNombre: 'Reparador', puestoConfigC: 0 }),
+    );
+    expect(r.accion).toBe('CONTROLADOR');
+    expect(r.registroFalla).toBe(false);
+    expect(r.puestoAsignado?.nombre).toBe('Control eléctrico');
+  });
+
+  test('terminal Reparador: repara la falla propia aunque haya registros más nuevos de otro tipo', async () => {
+    mEstado.estadoPorEtiqueta.mockResolvedValue([
+      registro({ id: 'coc-3', puestocontrol_id: 'p3', puestocontrol_n: 'Control Final' }),
+      registro({
+        id: 'own-falla',
+        puestocontrol_id: 't1',
+        puestocontrol_n: 'Control eléctrico',
+        controlador_estado: false,
+        controlador_falla_id: 'n1a',
+        reparador_falla_id: null,
+      }),
+    ]);
+
+    const r = await resolverEscaneo(
+      baseInput({ numero: 220011, puestoConfigIndex: 0, puestoConfigNombre: 'Reparador', puestoConfigC: 0 }),
+    );
+    expect(r.accion).toBe('REPARADOR');
+    expect(r.registroId).toBe('own-falla');
+  });
 });
